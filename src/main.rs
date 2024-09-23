@@ -1,5 +1,6 @@
 use clap::Parser;
 use codegen::{Scope, Function};
+use html2text::from_read;
 use scraper::{Html, Selector};
 
 use std::fs;
@@ -20,7 +21,9 @@ fn generate(p: i16) {
         .unwrap()
         .text()
         .unwrap();
-
+    
+    //let text = from_read(html.as_bytes(), 20);
+    //println!("{:?}", text);
     let document = Html::parse_document(&html); 
     let title_selector = Selector::parse("h2").expect("unable to find problem title");
     
@@ -32,9 +35,9 @@ fn generate(p: i16) {
     let problem = document.select(&content_selector).map(|x| x.inner_html());
     
     println!("Generated information for problem {p}:");
-    h2.clone().for_each(|line| println!{"{}", line});
-    desc.for_each(|line| println!{"{}", line});
-    problem.for_each(|line| println!{"{}", line});
+    h2.clone().for_each(|line| println!{"/* {} */", line});
+    desc.for_each(|line| println!{"/* {} */", from_read(line.as_bytes(), 100)});
+    problem.for_each(|line| println!{"/* {} */", from_read(line.replace("$", "").as_bytes(), 100)});
 
     // Codegen
     let mut scope = Scope::new();

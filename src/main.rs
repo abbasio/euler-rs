@@ -4,7 +4,8 @@ use codegen::{Scope, Function};
 use html2text::from_read;
 use scraper::{Html, Selector};
 
-use std::error::Error;
+use std::fs::File;
+use std::io::Write;
 
 #[derive(Parser)]
 struct Cli {
@@ -17,14 +18,19 @@ fn main(){
 }
 
 fn generate(p: i16) {
-    let html = get_html(p);
+    let html: String = get_html(p);
     let mut problem_strings = parse_html(&html).into_iter(); 
     
-
+    let file_name = format!("{:0>7}", format!("{}.rs", p));
+    let path = &file_name;
+    let mut output = File::create(path).expect("Failed to create a file at path");
+    problem_strings.clone().for_each(|string| {
+        write!(output, "/* {} */\n\n", string).expect("Failed to write problem content to file");
+    });
+    
     // Codegen
     let mut scope = Scope::new();
-    
-    let function_name = problem_strings.clone().nth(0)
+    let function_name = problem_strings.nth(0)
         .expect("Problem name not found")
         .to_lowercase()
         .replace(" ", "_");
@@ -35,13 +41,8 @@ fn generate(p: i16) {
     
     scope.push_fn(function);
     println!("Generated function template for problem {p}:");
-    println!("{:?}", scope.to_string());
-
-    println!("Generated information for problem {p}:");
-    problem_strings.for_each(|string| {
-        println!{"/* {} */", string}
-    });
-
+    
+    write!(output, "{}", scope.to_string()).expect("Failed to write function template to file");
 }
 
 fn get_html(p: i16) -> String {

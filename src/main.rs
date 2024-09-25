@@ -4,17 +4,33 @@ use codegen::{Scope, Function};
 use html2text::from_read;
 use scraper::{Html, Selector};
 
-use std::fs::File;
+use std::process::Command;
+use std::fs::{File, exists};
 use std::io::Write;
 
 #[derive(Parser)]
 struct Cli {
-    problem: i16,
+    p: i16,
 }
 
 fn main(){
     let args = Cli::parse();
-    generate(args.problem);
+    let file_name = format!("{:0>7}", format!("{}.rs", args.p));
+    if exists(&file_name).expect("unable to check if file exists") {
+        // Compile the problem 
+        Command::new("rustc")
+            .arg(&file_name)
+            .status()
+            .expect("rustc command failed to start");
+        let mut run_problem = String::from("./");
+        run_problem.push_str(&file_name[..4]);
+        // Run the problem
+        Command::new(run_problem)
+            .status()
+            .expect("failed to execute problem");
+    } else {
+        generate(args.p);
+    }
 }
 
 fn generate(p: i16) {
@@ -30,18 +46,29 @@ fn generate(p: i16) {
 
     let mut output = File::create(path).expect("Failed to create a file at path");
     problem_strings.into_iter().for_each(|string| {
-        write!(output, "/* {} */\n\n", string).expect("Failed to write problem content to file");
+        write!(output, "/*\n{}\n*/\n\n", string).expect("Failed to write problem content to file");
     });
     
     // Codegen
     let mut scope = Scope::new();
-    let mut function = Function::new(&function_name);
-    function
-        .ret("u32");
-    scope.push_fn(function);
-    println!("Generated function template for problem {p}:");
     
+    let mut problem_fn = Function::new(function_name);
+    problem_fn
+        .ret("u32")
+        .line("// Your code here")
+        .line("// Feel free to create and use helper functions,")
+        .line("// but make sure this function returns your answer");
+    
+    let mut main_fn = Function::new("main");
+    main_fn
+        .line(format!("let answer = {}();", function_name))
+        .line("println!(\"{}\", answer);");
+    
+    scope.push_fn(problem_fn);
+    scope.push_fn(main_fn);
     write!(output, "{}", scope.to_string()).expect("Failed to write function template to file");
+    
+    println!("Generated function templates for problem {p}");
 }
 
 fn get_html(p: i16) -> String {

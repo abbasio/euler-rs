@@ -62,10 +62,10 @@ fn parse_html(html: &str) -> Vec<String> {
 
     problem_strings.extend(document.select(&title_selector).map(|x| x.inner_html()));
     problem_strings.extend(document.select(&description_selector).map(|x| {
-       return from_read(format_desc(x.inner_html()).as_bytes(), 100);
+       return format_desc(x.inner_html());
     }));
     problem_strings.extend(document.select(&content_selector).map(|x| {
-       return from_read(format_content(x.inner_html()).as_bytes(), 100);
+       return format_content(x.inner_html());
     }));
     
     return problem_strings;
@@ -76,13 +76,16 @@ fn format_content(line: String) -> String {
    let replace_with = &["", "...", "%", "==="];
 
    let ac = AhoCorasick::new(patterns).unwrap();
-   return ac.replace_all(&line, replace_with);
+   let formatted_content = ac.replace_all(&line, replace_with);
+   
+   return from_read(formatted_content.as_bytes(), 100);
 }
 
 fn format_desc(line: String) -> String {
-    return line.split(";")
+    let filtered_desc = line.split(";")
         .enumerate()
         .filter_map(|(i, el)| (i != 1)
         .then(|| el))
         .collect::<String>();
+    return from_read(filtered_desc.as_bytes(), 100);
 }

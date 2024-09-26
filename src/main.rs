@@ -4,7 +4,7 @@ use codegen::{Scope, Function};
 use html2text::from_read;
 use scraper::{Html, Selector};
 
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::fs::{File, exists};
 use std::io::Write;
 
@@ -15,64 +15,51 @@ struct Cli {
 
 fn main(){
     let args = Cli::parse();
+    let url = format!("https://projecteuler.net/problem={}", args.p);
+    
     let file_name = format!("{:0>7}", format!("{}.rs", args.p));
     if exists(&file_name).expect("unable to check if file exists") {
         // Compile the problem 
         Command::new("rustc")
             .arg(&file_name)
             .status()
-            .expect("rustc command failed to start");
+            .unwrap();
+        // Run the problem, retrieve output
         let mut run_problem = String::from("./");
         run_problem.push_str(&file_name[..4]);
-        // Run the problem
-        Command::new(run_problem)
-            .status()
-            .expect("failed to execute problem");
+        let output = Command::new(run_problem)
+            .stdout(Stdio::piped())
+            .output()
+            .unwrap();
+        
+        let answer = String::from_utf8(output.stdout).unwrap();
+        submit_answer(answer);
     } else {
-        generate(args.p);
+        generate_problem_file(&url, &file_name);
     }
 }
 
-fn generate(p: i16) {
-    let html: String = get_html(p);
+fn generate_problem_file(url: &str, file_name: &str) {
+    let html: String = get_html(url);
     let problem_strings = parse_html(&html); 
     
-    let file_name = format!("{:0>7}", format!("{}.rs", p));
-    let path = &file_name;
-    
-    let function_name = &problem_strings[0]
+    let fn_name = &problem_strings[0]
         .to_lowercase()
         .replace(" ", "_");
 
-    let mut output = File::create(path).expect("Failed to create a file at path");
+    let mut output = File::create(file_name).expect("Failed to create a file at path");
     problem_strings.into_iter().for_each(|string| {
         write!(output, "/*\n{}\n*/\n\n", string).expect("Failed to write problem content to file");
     });
     
-    // Codegen
-    let mut scope = Scope::new();
+    let code_template = generate_code_template(fn_name);
+    write!(output, "{}", code_template).expect("Failed to write function template to file");
     
-    let mut problem_fn = Function::new(function_name);
-    problem_fn
-        .ret("u32")
-        .line("// Your code here")
-        .line("// Feel free to create and use helper functions,")
-        .line("// but make sure this function returns your answer");
-    
-    let mut main_fn = Function::new("main");
-    main_fn
-        .line(format!("let answer = {}();", function_name))
-        .line("println!(\"{}\", answer);");
-    
-    scope.push_fn(problem_fn);
-    scope.push_fn(main_fn);
-    write!(output, "{}", scope.to_string()).expect("Failed to write function template to file");
-    
-    println!("Generated function templates for problem {p}");
+    println!("Generated problem file {}", file_name);
 }
 
-fn get_html(p: i16) -> String {
-    return reqwest::blocking::get(format!("https://projecteuler.net/problem={p}"))
+fn get_html(url: &str) -> String {
+    return reqwest::blocking::get(url)
         .unwrap()
         .text()
         .unwrap();
@@ -115,4 +102,28 @@ fn format_desc(line: String) -> String {
         .then(|| el))
         .collect::<String>();
     return from_read(filtered_desc.as_bytes(), 100);
+}
+
+fn generate_code_template(fn_name: &str) -> String {
+    let mut scope = Scope::new();
+    
+    let mut problem_fn = Function::new(fn_name);
+    problem_fn 
+        .line("// Your code here")
+        .line("// Feel free to create and use helper functions,")
+        .line("// but make sure this function returns your answer");
+    
+    let mut main_fn = Function::new("main");
+    main_fn
+        .line(format!("let answer = {}();", fn_name))
+        .line("println!(\"{}\", answer);");
+    
+    scope.push_fn(problem_fn);
+    scope.push_fn(main_fn);
+
+    return scope.to_string();
+}
+
+fn submit_answer(answer: String) {
+    println!("{}", answer.replace("\n", ""));
 }

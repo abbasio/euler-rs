@@ -6,4 +6,10 @@ A user should be able to input a problem number and generate a `.rs` file contai
   - The text for the problem itself
   - A function template for generating an answer
 
-Afterwards, a user should be able to test and submit their solution - either against a hard-coded local list of solutions, or, preferably, by directly POSTing a solution attempt to project euler.
+After a user has attempted a solution using the function template, they should be able to run their attempt and check for correctness. 
+
+TODO:
+  - Restructuring (split into modules)
+  - Testing and proper error handling (file write/read, html get/parse, building and running solutions)
+  - Solution correctness (confirm whether the output of a problem's function matches the solution to that problem)
+  - Sequential generation? (Mark problems as solved once the solution is correct, offer to generate the next problem)

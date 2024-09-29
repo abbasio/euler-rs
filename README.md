@@ -13,3 +13,5 @@ TODO:
   - Testing and proper error handling (file write/read, html get/parse, building and running solutions)
   - Solution correctness (confirm whether the output of a problem's function matches the solution to that problem)
   - Sequential generation? (Mark problems as solved once the solution is correct, offer to generate the next problem)
+
+Solutions taken from [lucky-bai's repository](https://github.com/lucky-bai/projecteuler-solutions)

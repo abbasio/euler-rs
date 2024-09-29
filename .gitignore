@@ -6,3 +6,5 @@ problems/*
 
 solutions/*
 !solutions/.gitkeep
+!solutions/solutions.md
+!solutions/LICENSE

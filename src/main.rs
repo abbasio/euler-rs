@@ -163,14 +163,32 @@ fn compile_and_run(file_name: &str) -> String {
 }
 
 fn submit_answer(answer: String, problem_number: i16) {
-    println!("{}", answer.replace("\n", ""));
-    // Check the local solutions file for the answer
+    let attempt = answer.trim();
     let solutions_file = String::from("solutions/solutions.md");
     if let Ok (lines) = read_solutions(solutions_file) {
-        for (i, line) in lines.flatten().skip(3).enumerate() {
-            if i == problem_number.try_into().unwrap() {
-                println!("{:?}", line.split(" ").nth(1).unwrap());
+        for line in lines.flatten().skip(4) {
+            let mut solution_row = line.split(" ");
+            let solution_number = solution_row
+                .next()
+                .unwrap()
+                .trim_end_matches('.')
+                .parse::<i16>()
+                .unwrap();
+            if solution_number != problem_number {
+                continue;
             }
+            let solution = solution_row
+                .next()
+                .unwrap();
+            
+            if attempt == solution {
+                println!("Solved problem {}! Your answer: {}", problem_number, answer);
+                break;
+            } else {
+                println!("Incorrect answer to problem {}. Your answer: {}", problem_number, answer);
+                break;
+            }
+            
         }
     }
     // If the answer for the given problem number doesn't exist, try updating the solutions file

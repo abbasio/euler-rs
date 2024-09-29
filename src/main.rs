@@ -6,7 +6,7 @@ use scraper::{Html, Selector};
 
 use std::process::{Command, Stdio};
 use std::fs::{File, create_dir_all};
-use std::io::{ErrorKind, Write};
+use std::io::{self, BufRead, ErrorKind, Write};
 
 #[derive(Parser)]
 struct Cli {
@@ -24,7 +24,7 @@ fn main(){
  
     create_dir_all("problems").expect("failed to create problem directory");
     create_dir_all("solutions").expect("failed to create solutions directory");
-    
+     
     let file_name = format!("{:0>4}", format!("{}", args.p));
     let path = String::from("problems/") + &file_name + ".rs";
     
@@ -34,18 +34,18 @@ fn main(){
         ReadOrWrite::Read(existing_file) => {
             println!("file exists, compiling...");
             let answer = compile_and_run(&existing_file);
-            submit_answer(answer);
+            submit_answer(answer, args.p);
         }, 
         ReadOrWrite::Write(new_file) => {
             println!("file does not exist, generating...");
-            generate_problem_file(args.p, &url, new_file);
+            generate_problem_file(args.p, url, new_file);
         }
     }
 }
 
-fn generate_problem_file(p: i16, url: &str, mut file: File) {
+fn generate_problem_file(p: i16, url: String, mut file: File) {
     let html: String = get_html(url);
-    let problem_strings = parse_html(&html); 
+    let problem_strings = parse_html(html); 
     
     let fn_name = &problem_strings[0]
         .to_lowercase()
@@ -58,6 +58,7 @@ fn generate_problem_file(p: i16, url: &str, mut file: File) {
         if i == 0 {
             write!(file, "// Problem #{}: {}\n\n", p, string).expect("Failed to write problem title to file");
         } else {
+            // remove trailing newline for problem content and description
             string.pop();
             write!(file, "/*\n{}\n*/\n\n", string).expect("Failed to write problem content to file");
         }
@@ -69,31 +70,31 @@ fn generate_problem_file(p: i16, url: &str, mut file: File) {
     println!("Generated problem file");
 }
 
-fn get_html(url: &str) -> String {
-    return reqwest::blocking::get(url)
+fn get_html(url: String) -> String {
+    reqwest::blocking::get(url)
         .unwrap()
         .text()
-        .unwrap();
+        .unwrap()
 }
 
-fn parse_html(html: &str) -> Vec<String> {
+fn parse_html(html: String) -> Vec<String> {
     let document = Html::parse_document(&html); 
-    let mut problem_strings: Vec<String> = Vec::new();
+    let mut problem: Vec<String> = Vec::new();
     
     // Selectors
     let title_selector = Selector::parse("h2").expect("unable to find problem title");
     let description_selector = Selector::parse("span.tooltiptext_right").expect("unable to find problem description");
     let content_selector = Selector::parse("div.problem_content").expect("unable to find problem content");
 
-    problem_strings.extend(document.select(&title_selector).map(|x| x.inner_html()));
-    problem_strings.extend(document.select(&description_selector).map(|x| {
-       return format_desc(x.inner_html());
+    problem.extend(document.select(&title_selector).map(|x| x.inner_html()));
+    problem.extend(document.select(&description_selector).map(|x| {
+       format_desc(x.inner_html())
     }));
-    problem_strings.extend(document.select(&content_selector).map(|x| {
-       return format_content(x.inner_html());
+    problem.extend(document.select(&content_selector).map(|x| {
+       format_content(x.inner_html())
     }));
     
-    return problem_strings;
+    problem
 }
 
 fn format_content(line: String) -> String {
@@ -102,16 +103,18 @@ fn format_content(line: String) -> String {
 
    let ac = AhoCorasick::new(patterns).unwrap();
    let content = ac.replace_all(&line, replace_with);
-   return from_read(content.as_bytes(), 100);
+   
+   from_read(content.as_bytes(), 100)
 }
 
 fn format_desc(line: String) -> String {
     let desc = line.split(";")
         .enumerate()
         .filter_map(|(i, el)| (i != 1)
-        .then(|| el))
+        .then_some(el))
         .collect::<String>();
-    return from_read(desc.as_bytes(), 100);
+    
+    from_read(desc.as_bytes(), 100)
 }
 
 fn generate_code_template(fn_name: &str) -> String {
@@ -124,7 +127,7 @@ fn generate_code_template(fn_name: &str) -> String {
         .line("// Feel free to create and use helper functions,")
         .line("// but make sure this function returns your answer\n")
         .line("// Make sure your answer is returned as a string!")
-        .line("return 0.to_string();");
+        .line("return \"\".to_string();");
     
     let mut main_fn = Function::new("main");
     main_fn
@@ -134,7 +137,7 @@ fn generate_code_template(fn_name: &str) -> String {
     scope.push_fn(problem_fn);
     scope.push_fn(main_fn);
 
-    return scope.to_string();
+    scope.to_string()
 }
 
 fn compile_and_run(file_name: &str) -> String {
@@ -156,24 +159,40 @@ fn compile_and_run(file_name: &str) -> String {
         .output()
         .unwrap();
         
-    return String::from_utf8(output.stdout).unwrap();
+    String::from_utf8(output.stdout).unwrap()
 }
 
-fn submit_answer(answer: String) {
+fn submit_answer(answer: String, problem_number: i16) {
     println!("{}", answer.replace("\n", ""));
+    // Check the local solutions file for the answer
+    let solutions_file = String::from("solutions/solutions.md");
+    if let Ok (lines) = read_solutions(solutions_file) {
+        for (i, line) in lines.flatten().skip(3).enumerate() {
+            if i == problem_number.try_into().unwrap() {
+                println!("{:?}", line.split(" ").nth(1).unwrap());
+            }
+        }
+    }
+    // If the answer for the given problem number doesn't exist, try updating the solutions file
+    // If the answer still doesn't exist, throw an error 
 }
 
 fn generate_or_evaluate_file(path: String, file_name: String) -> ReadOrWrite {
     let file = File::create_new(&path);
     match file {
         Ok(new_file) => {
-            return ReadOrWrite::Write(new_file);
+            ReadOrWrite::Write(new_file)
         },
         Err(ref e) => match e.kind() {
             ErrorKind::AlreadyExists => {
-                return ReadOrWrite::Read(file_name);
+                ReadOrWrite::Read(file_name)
             }, 
             _ => panic!("Cannot read from file: {}, error: {}", path, e),
         },
     }
+}
+
+fn read_solutions(path: String) -> io::Result<io::Lines<io::BufReader<File>>> {
+    let file = File::open(path)?;
+    Ok(io::BufReader::new(file).lines())
 }

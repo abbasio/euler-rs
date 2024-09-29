@@ -13,6 +13,11 @@ struct Cli {
     p: i16,
 }
 
+enum ReadOrWrite {
+    Read(String),
+    Write(File),
+}
+
 fn main(){
     let args = Cli::parse();
     let url = format!("https://projecteuler.net/problem={}", args.p);
@@ -23,19 +28,18 @@ fn main(){
     let file_name = format!("{:0>4}", format!("{}", args.p));
     let path = String::from("problems/") + &file_name + ".rs";
     
-    let file = File::create_new(&path);
-    match file {
-        Ok(new_file) => {
+    let result = generate_or_evaluate_file(path, file_name);
+    
+    match result {
+        ReadOrWrite::Read(existing_file) => {
+            println!("file exists, compiling...");
+            let answer = compile_and_run(&existing_file);
+            submit_answer(answer);
+        }, 
+        ReadOrWrite::Write(new_file) => {
+            println!("file does not exist, generating...");
             generate_problem_file(args.p, &url, new_file);
-            return;
-        },
-        Err(ref e) => match e.kind() {
-            ErrorKind::AlreadyExists => {
-                let answer = compile_and_run(&file_name);
-                submit_answer(answer);
-            }, 
-            _ => panic!("Cannot read from file: {}, error: {}", path, e),
-        },
+        }
     }
 }
 
@@ -157,4 +161,19 @@ fn compile_and_run(file_name: &str) -> String {
 
 fn submit_answer(answer: String) {
     println!("{}", answer.replace("\n", ""));
+}
+
+fn generate_or_evaluate_file(path: String, file_name: String) -> ReadOrWrite {
+    let file = File::create_new(&path);
+    match file {
+        Ok(new_file) => {
+            return ReadOrWrite::Write(new_file);
+        },
+        Err(ref e) => match e.kind() {
+            ErrorKind::AlreadyExists => {
+                return ReadOrWrite::Read(file_name);
+            }, 
+            _ => panic!("Cannot read from file: {}, error: {}", path, e),
+        },
+    }
 }

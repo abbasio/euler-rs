@@ -6,16 +6,16 @@ use scraper::{Html, Selector};
 
 use std::process::{Command, Stdio};
 use std::fs::{File, create_dir_all};
-use std::io::{self, BufRead, ErrorKind, Write};
+use std::io::{BufReader, BufRead, ErrorKind, Write};
 
 #[derive(Parser)]
 struct Cli {
     p: i16,
 }
 
-enum ReadOrWrite {
+enum ReadOrCreate {
     Read(String),
-    Write(File),
+    Create(File),
 }
 
 fn main(){
@@ -26,17 +26,17 @@ fn main(){
     create_dir_all("solutions").expect("failed to create solutions directory");
      
     let file_name = format!("{:0>4}", format!("{}", args.p));
-    let path = String::from("problems/") + &file_name + ".rs";
+    let path = String::from("./problems/") + &file_name + ".rs";
     
-    let result = generate_or_evaluate_file(path, file_name);
+    let result = generate_or_evaluate_file(path);
     
     match result {
-        ReadOrWrite::Read(existing_file) => {
+        ReadOrCreate::Read(existing_file) => {
             println!("file exists, compiling...");
-            let answer = compile_and_run(&existing_file);
+            let answer = compile_and_run(existing_file);
             submit_answer(answer, args.p);
         }, 
-        ReadOrWrite::Write(new_file) => {
+        ReadOrCreate::Create(new_file) => {
             println!("file does not exist, generating...");
             generate_problem_file(args.p, url, new_file);
         }
@@ -140,15 +140,14 @@ fn generate_code_template(fn_name: &str) -> String {
     scope.to_string()
 }
 
-fn compile_and_run(file_name: &str) -> String {
-    let problem_path = String::from("./problems/") + file_name + ".rs"; 
-    let solution_path = problem_path
+fn compile_and_run(path: String) -> String {
+    let solution_path = path
         .replace("problems", "solutions")
         .replace(".rs", "");
 
     // Compile the problem 
     Command::new("rustc")
-        .arg(&problem_path)
+        .arg(&path)
         .args(["-o", &solution_path])
         .status()
         .unwrap();
@@ -165,52 +164,62 @@ fn compile_and_run(file_name: &str) -> String {
 fn submit_answer(answer: String, problem_number: i16) {
     let attempt = answer.trim();
     let solutions_file = String::from("solutions/solutions.md");
-    if let Ok (lines) = read_solutions(solutions_file) {
-        for line in lines.flatten().skip(4) {
-            let mut solution_row = line.split(" ");
-            let solution_number = solution_row
-                .next()
-                .unwrap()
-                .trim_end_matches('.')
-                .parse::<i16>()
-                .unwrap();
-            if solution_number != problem_number {
-                continue;
-            }
-            let solution = solution_row
-                .next()
-                .unwrap();
-            
-            if attempt == solution {
-                println!("Solved problem {}! Your answer: {}", problem_number, answer);
-                break;
-            } else {
-                println!("Incorrect answer to problem {}. Your answer: {}", problem_number, answer);
-                break;
-            }
-            
+    let result = generate_or_evaluate_file(solutions_file);
+    match result {
+        ReadOrCreate::Read(existing_file) => {
+            println!("Solutions file found, comparing answer...");
+            check_answer(existing_file, attempt, problem_number)
+        },
+        ReadOrCreate::Create(new_file) => {
+            println!("Solutions file not found, attempting to generate...")
         }
     }
     // If the answer for the given problem number doesn't exist, try updating the solutions file
     // If the answer still doesn't exist, throw an error 
 }
 
-fn generate_or_evaluate_file(path: String, file_name: String) -> ReadOrWrite {
+fn generate_or_evaluate_file(path: String) -> ReadOrCreate {
     let file = File::create_new(&path);
     match file {
         Ok(new_file) => {
-            ReadOrWrite::Write(new_file)
+            ReadOrCreate::Create(new_file)
         },
         Err(ref e) => match e.kind() {
             ErrorKind::AlreadyExists => {
-                ReadOrWrite::Read(file_name)
+                ReadOrCreate::Read(path)
             }, 
             _ => panic!("Cannot read from file: {}, error: {}", path, e),
         },
     }
 }
 
-fn read_solutions(path: String) -> io::Result<io::Lines<io::BufReader<File>>> {
-    let file = File::open(path)?;
-    Ok(io::BufReader::new(file).lines())
+fn check_answer(path: String, attempt: &str, problem_number: i16) {
+    let file = File::open(path).unwrap();
+    let lines = BufReader::new(file).lines();
+    
+    for line in lines.flatten().skip(4) {
+        let mut solution_row = line.split(" ");
+        let solution_number = solution_row
+            .next()
+            .unwrap()
+            .trim_end_matches('.')
+            .parse::<i16>()
+            .unwrap();
+        if solution_number != problem_number {
+            continue;
+        }
+        let solution = solution_row
+            .next()
+            .unwrap();
+            
+        if attempt == solution {
+            println!("Solved problem {}! Your answer: {}", problem_number, attempt);
+            break;
+        } else {
+            println!("Incorrect answer to problem {}. Your answer: {}", problem_number, attempt);
+            break;
+        }
+            
+    }
+
 }

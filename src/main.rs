@@ -170,8 +170,14 @@ fn submit_answer(answer: String, problem_number: i16) {
             println!("Solutions file found, comparing answer...");
             check_answer(existing_file, attempt, problem_number)
         },
-        ReadOrCreate::Create(new_file) => {
-            println!("Solutions file not found, attempting to generate...")
+        ReadOrCreate::Create(mut new_file) => {
+            println!("Solutions file not found, attempting to generate...");
+            let url = 
+                "https://raw.githubusercontent.com/lucky-bai/projecteuler-solutions/refs/heads/master/Solutions.md".to_string();
+            let solutions = get_html(url);
+            write!(new_file, "{}", solutions).expect("Failed to write solutions to file");
+            println!("Solutions file generated, re-attempting to check answer...");
+            submit_answer(answer, problem_number);
         }
     }
     // If the answer for the given problem number doesn't exist, try updating the solutions file
@@ -213,7 +219,7 @@ fn check_answer(path: String, attempt: &str, problem_number: i16) {
             .unwrap();
             
         if attempt == solution {
-            println!("Solved problem {}! Your answer: {}", problem_number, attempt);
+            solved_problem(problem_number, attempt);
             break;
         } else {
             println!("Incorrect answer to problem {}. Your answer: {}", problem_number, attempt);
@@ -222,4 +228,8 @@ fn check_answer(path: String, attempt: &str, problem_number: i16) {
             
     }
 
+}
+
+fn solved_problem(p: i16, answer: &str) {
+    println!("Solved problem {}! Your answer: {}", p, answer);
 }

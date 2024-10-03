@@ -20,12 +20,11 @@ enum ReadOrCreate {
 
 fn main(){
     let args = Cli::parse();
-    let url = format!("https://projecteuler.net/problem={}", args.p);
  
     create_dir_all("problems").expect("failed to create problem directory");
     create_dir_all("solutions").expect("failed to create solutions directory");
      
-    let file_name = format!("{:0>4}", format!("{}", args.p));
+    let file_name = format!("{:0>4}", args.p.to_string());
     let path = String::from("./problems/") + &file_name + ".rs";
     
     let result = generate_or_evaluate_file(path);
@@ -38,12 +37,13 @@ fn main(){
         }, 
         ReadOrCreate::Create(new_file) => {
             println!("file does not exist, generating...");
-            generate_problem_file(args.p, url, new_file);
+            generate_problem_file(args.p, new_file);
         }
     }
 }
 
-fn generate_problem_file(p: i16, url: String, mut file: File) {
+fn generate_problem_file(p: i16, mut file: File) {
+    let url = format!("https://projecteuler.net/problem={}", p);
     let html: String = get_html(url);
     let problem_strings = parse_html(html); 
     
@@ -127,12 +127,12 @@ fn generate_code_template(fn_name: &str) -> String {
         .line("// Feel free to create and use helper functions,")
         .line("// but make sure this function returns your answer\n")
         .line("// Make sure your answer is returned as a string!")
-        .line("return \"\".to_string();");
+        .line("let answer = -1;")
+        .line("answer.to_string()");
     
     let mut main_fn = Function::new("main");
     main_fn
-        .line(format!("let answer = {}();", fn_name))
-        .line("println!(\"{}\", answer);");
+        .line(format!("println!(\"{{}}\", {}());", fn_name));
     
     scope.push_fn(problem_fn);
     scope.push_fn(main_fn);

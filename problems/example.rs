@@ -21,10 +21,10 @@ fn multiples_of_3_or_5() -> String {
     // but make sure this function returns your answer
 
     // Make sure your answer is returned as a string!
-    return 0.to_string();
+    let answer = -1;
+    answer.to_string()
 }
 
 fn main() {
-    let answer = multiples_of_3_or_5();
-    println!("{}", answer);
+    println!("{}", multiples_of_3_or_5());
 }

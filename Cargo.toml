@@ -1,7 +1,14 @@
 [package]
 name = "euler-rs"
 version = "0.1.0"
-edition = "2021"
+authors = ["Omar Abbasi"]
+license = "MIT OR Apache-2.0"
+description = "A command line tool for solving Project Euler problems in Rust"
+homepage = "https://github.com/abbasio/euler-rs"
+repository = "https://github.com/abbasio/euler-rs"
+readme = "README.md"
+keywords = ["cli", "euler", "math", "puzzle"]
+categories = ["command-line-utilities", "mathematics"]
 
 [dependencies]
 aho-corasick = "1.1.3"

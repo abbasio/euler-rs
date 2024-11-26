@@ -10,6 +10,10 @@ repository = "https://github.com/abbasio/euler-rs"
 readme = "README.md"
 keywords = ["cli", "euler", "math", "puzzle"]
 categories = ["command-line-utilities", "mathematics"]
+exclude = [
+	"problems/*",
+	"solutions/*",
+]
 
 [dependencies]
 aho-corasick = "1.1.3"

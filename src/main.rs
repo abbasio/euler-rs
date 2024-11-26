@@ -24,8 +24,8 @@ enum ReadOrCreate {
 fn main(){
     let args = Cli::parse();
  
-    create_dir_all("problems").expect("failed to create problem directory");
-    create_dir_all("solutions").expect("failed to create solutions directory");
+    create_dir_all("problems").expect("failed to create problem directory - check permissions for current directory");
+    create_dir_all("solutions").expect("failed to create solutions directory - check permissions for current directory");
      
     let file_name = format!("{:0>4}", args.problem.to_string());
     let path = String::from("./problems/") + &file_name + ".rs";

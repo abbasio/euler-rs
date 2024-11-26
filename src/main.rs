@@ -5,12 +5,15 @@ use html2text::from_read;
 use scraper::{Html, Selector};
 
 use std::process::{Command, Stdio};
-use std::fs::{File, create_dir_all};
-use std::io::{BufReader, BufRead, ErrorKind, Write};
+use std::fs::{File, create_dir_all, remove_file};
+use std::io::{BufReader, BufRead, Error, ErrorKind, Result, Write};
 
 #[derive(Parser)]
+#[command(version, about, long_about = None)]
 struct Cli {
-    p: i16,
+    /// Problem number for which to either generate a template or evaluate a solution
+    #[arg(short, long)]
+    problem: i16,
 }
 
 enum ReadOrCreate {
@@ -24,25 +27,35 @@ fn main(){
     create_dir_all("problems").expect("failed to create problem directory");
     create_dir_all("solutions").expect("failed to create solutions directory");
      
-    let file_name = format!("{:0>4}", args.p.to_string());
+    let file_name = format!("{:0>4}", args.problem.to_string());
     let path = String::from("./problems/") + &file_name + ".rs";
     
-    let result = generate_or_evaluate_file(path);
+    let result = generate_or_evaluate_file(&path);
     
     match result {
         ReadOrCreate::Read(existing_file) => {
             println!("file exists, compiling...");
             let answer = compile_and_run(existing_file);
-            submit_answer(answer, args.p);
+            submit_answer(answer, args.problem);
         }, 
         ReadOrCreate::Create(new_file) => {
             println!("file does not exist, generating...");
-            generate_problem_file(args.p, new_file);
+            let _generated_file = match generate_problem_file(args.problem, new_file){
+                Ok(_generated_file) => println!("File generated"),
+                Err(e) => match e.kind(){
+                    ErrorKind::Other => {
+                        remove_file(&path).expect("failed to delete file");
+                        println!("Problem does not exist!");
+                        println!("Check https://projecteuler.net/archives for a list of current problems");
+                    },
+                    _ => panic!("Error generating file: {}", e),
+                }
+            };
         }
     }
 }
 
-fn generate_problem_file(p: i16, mut file: File) {
+fn generate_problem_file(p: i16, mut file: File) -> Result<()> {
     let url = format!("https://projecteuler.net/problem={}", p);
     let html: String = get_html(url);
     let problem_strings = parse_html(html); 
@@ -51,23 +64,28 @@ fn generate_problem_file(p: i16, mut file: File) {
         .to_lowercase()
         .replace(" ", "_");
 
+    if fn_name == "problem_archives" {
+        return Err(Error::new(ErrorKind::Other, "Problem does not exist"));
+    }
+
     problem_strings
         .into_iter()
         .enumerate()
-        .for_each(|(i, mut string)| {
-        if i == 0 {
-            write!(file, "// Problem #{}: {}\n\n", p, string).expect("Failed to write problem title to file");
-        } else {
-            // remove trailing newline for problem content and description
-            string.pop();
-            write!(file, "/*\n{}\n*/\n\n", string).expect("Failed to write problem content to file");
-        }
-    });
+        .for_each(|(i, mut string)|{
+            if i == 0 {
+                write!(file, "// Problem #{}: {}\n\n", p, string).expect("Failed to write problem title to file");
+            } else {
+                // remove trailing newline for problem content and description
+                string.pop();
+                write!(file, "/*\n{}\n*/\n\n", string).expect("Failed to write problem content to file");
+            }
+        });
     
     let code_template = generate_code_template(fn_name);
     write!(file, "{}", code_template).expect("Failed to write function template to file");
     
     println!("Generated problem file");
+    Ok(())
 }
 
 fn get_html(url: String) -> String {
@@ -163,7 +181,7 @@ fn compile_and_run(path: String) -> String {
 
 fn submit_answer(answer: String, problem_number: i16) {
     let attempt = answer.trim();
-    let solutions_file = String::from("solutions/solutions.md");
+    let solutions_file = "solutions/solutions.md";
     let result = generate_or_evaluate_file(solutions_file);
     match result {
         ReadOrCreate::Read(existing_file) => {
@@ -184,15 +202,15 @@ fn submit_answer(answer: String, problem_number: i16) {
     // If the answer still doesn't exist, throw an error 
 }
 
-fn generate_or_evaluate_file(path: String) -> ReadOrCreate {
-    let file = File::create_new(&path);
+fn generate_or_evaluate_file(path: &str) -> ReadOrCreate {
+    let file = File::create_new(path);
     match file {
         Ok(new_file) => {
             ReadOrCreate::Create(new_file)
         },
         Err(ref e) => match e.kind() {
             ErrorKind::AlreadyExists => {
-                ReadOrCreate::Read(path)
+                ReadOrCreate::Read(path.to_string())
             }, 
             _ => panic!("Cannot read from file: {}, error: {}", path, e),
         },
